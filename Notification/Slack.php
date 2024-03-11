@@ -24,19 +24,19 @@ class Slack extends Base implements NotificationInterface
      */
     public function notifyUser(array $user, $eventName, array $eventData)
     {
-        $webhook = $this->userMetadataModel->get($user['id'], 'slack_webhook_url', $this->configModel->get('slack_webhook_url'));
-        $channel = $this->userMetadataModel->get($user['id'], 'slack_webhook_channel');
+        $token = $this->userMetadataModel->get($user['id'], 'slack_bot_token', $this->configModel->get('slack_bot_token'));
+        $channel = $this->userMetadataModel->get($user['id'], 'slack_post_channel');
 
-        if (! empty($webhook)) {
+        if (! empty($token)) {
             if ($eventName === TaskModel::EVENT_OVERDUE) {
                 foreach ($eventData['tasks'] as $task) {
                     $project = $this->projectModel->getById($task['project_id']);
                     $eventData['task'] = $task;
-                    $this->sendMessage($webhook, $channel, $project, $eventName, $eventData);
+                    $this->sendMessage($token, $channel, $project, $eventName, $eventData);
                 }
             } else {
                 $project = $this->projectModel->getById($eventData['task']['project_id']);
-                $this->sendMessage($webhook, $channel, $project, $eventName, $eventData);
+                $this->sendMessage($token, $channel, $project, $eventName, $eventData);
             }
         }
     }
@@ -51,11 +51,11 @@ class Slack extends Base implements NotificationInterface
      */
     public function notifyProject(array $project, $eventName, array $eventData)
     {
-        $webhook = $this->projectMetadataModel->get($project['id'], 'slack_webhook_url', $this->configModel->get('slack_webhook_url'));
-        $channel = $this->projectMetadataModel->get($project['id'], 'slack_webhook_channel');
+        $token = $this->projectMetadataModel->get($project['id'], 'slack_bot_token', $this->configModel->get('slack_bot_token'));
+        $channel = $this->projectMetadataModel->get($project['id'], 'slack_post_channel');
 
-        if (! empty($webhook)) {
-            $this->sendMessage($webhook, $channel, $project, $eventName, $eventData);
+        if (! empty($token)) {
+            $this->sendMessage($token, $channel, $project, $eventName, $eventData);
         }
     }
 
@@ -116,14 +116,16 @@ class Slack extends Base implements NotificationInterface
      * @param  string    $eventName
      * @param  array     $eventData
      */
-    protected function sendMessage($webhook, $channel, array $project, $eventName, array $eventData)
+    protected function sendMessage($token, $channel, array $project, $eventName, array $eventData)
     {
         $payload = $this->getMessage($project, $eventName, $eventData);
 
-        if (! empty($channel)) {
-            $payload['channel'] = $channel;
+        if (empty($channel)) {
+            return;
         }
 
-        $this->httpClient->postJsonAsync($webhook, $payload);
+        $payload['channel'] = $channel;
+
+        $this->httpClient->postJsonAsync("https://slack.com/api/chat.postMessage", $payload, array('Authorization: Bearer '.$token));
     }
 }
